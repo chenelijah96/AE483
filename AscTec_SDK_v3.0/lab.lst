@@ -1,0 +1,895 @@
+   1              		.file	"lab.c"
+   9              	.Ltext0:
+  10              		.global	k1
+  11              		.data
+  12              		.align	2
+  15              	k1:
+  16 0000 00007A44 		.word	1148846080
+  17              		.global	k2
+  18              		.align	2
+  21              	k2:
+  22 0004 00007A44 		.word	1148846080
+  23              		.global	period
+  24              		.align	2
+  27              	period:
+  28 0008 0000A040 		.word	1084227584
+  29              		.global	kF
+  30              		.align	2
+  33              	kF:
+  34 000c 3CA28736 		.word	914858556
+  35              		.global	alpha
+  36              		.align	2
+  39              	alpha:
+  40 0010 55307640 		.word	1081487445
+  41              		.global	beta
+  42              		.align	2
+  45              	beta:
+  46 0014 0F0BEB42 		.word	1122700047
+  47              		.global	l
+  48              		.align	2
+  51              	l:
+  52 0018 97902F3E 		.word	1043304599
+  53              		.global	m
+  54              		.align	2
+  57              	m:
+  58 001c CDCC4C3D 		.word	1028443341
+  59              		.global	g
+  60              		.align	2
+  63              	g:
+  64 0020 C3F51C41 		.word	1092416963
+  65              		.global	input_amplitude
+  66              		.bss
+  67              		.align	2
+  70              	input_amplitude:
+  71 0000 00000000 		.space	4
+  72              		.global	sample_rate
+  73              		.data
+  74              		.align	2
+  77              	sample_rate:
+  78 0024 E8030000 		.word	1000
+  79              		.global	counter
+  80              		.bss
+  81              		.align	2
+  84              	counter:
+  85 0004 00000000 		.space	4
+  86              		.global	angle_pitch_desired
+  87              		.align	2
+  90              	angle_pitch_desired:
+  91 0008 00000000 		.space	4
+  92              		.global	mu1
+  93              		.align	2
+  96              	mu1:
+  97 000c 00000000 		.space	4
+  98              		.global	mu2
+  99              		.align	2
+ 102              	mu2:
+ 103 0010 00000000 		.space	4
+ 104              		.global	t
+ 105              		.align	2
+ 108              	t:
+ 109 0014 00000000 		.space	4
+ 110              		.global	angle_pitch
+ 111              		.align	2
+ 114              	angle_pitch:
+ 115 0018 00000000 		.space	4
+ 116              		.global	angvel_pitch
+ 117              		.align	2
+ 120              	angvel_pitch:
+ 121 001c 00000000 		.space	4
+ 122              		.global	u2
+ 123              		.align	2
+ 126              	u2:
+ 127 0020 00000000 		.space	4
+ 128              		.global	u4
+ 129              		.align	2
+ 132              	u4:
+ 133 0024 00000000 		.space	4
+ 134              		.global	f1
+ 135              		.align	2
+ 138              	f1:
+ 139 0028 00000000 		.space	4
+ 140              		.global	f2
+ 141              		.align	2
+ 144              	f2:
+ 145 002c 00000000 		.space	4
+ 146              		.global	sigma1
+ 147              		.align	2
+ 150              	sigma1:
+ 151 0030 00000000 		.space	4
+ 152              		.global	sigma2
+ 153              		.align	2
+ 156              	sigma2:
+ 157 0034 00000000 		.space	4
+ 158              		.global	__floatsisf
+ 159              		.global	__divsf3
+ 160              		.global	__extendsfdf2
+ 161              		.global	__divdf3
+ 162              		.global	__muldf3
+ 163              		.global	__truncdfsf2
+ 164              		.global	__subsf3
+ 165              		.global	__adddf3
+ 166              		.global	__mulsf3
+ 167              		.global	__fixsfsi
+ 168              		.text
+ 169              		.align	2
+ 170              		.global	lab
+ 172              	lab:
+ 173              	.LFB2:
+ 174              		.file 1 "lab.c"
+   1:lab.c         **** /*
+   2:lab.c         ****  * lab.c
+   3:lab.c         ****  *
+   4:lab.c         ****  *  Created on: Jan 26, 2015
+   5:lab.c         ****  *      Author: hanley6
+   6:lab.c         ****  */
+   7:lab.c         **** 
+   8:lab.c         **** #include "lab.h"
+   9:lab.c         **** #include "main.h"
+  10:lab.c         **** #include "sdk.h"
+  11:lab.c         **** #include "math.h"
+  12:lab.c         **** 
+  13:lab.c         **** // PARAMETERS FROM ACI TOOL
+  14:lab.c         **** float k1 = 1000.0;					// first element of 1x2 matrix K
+  15:lab.c         **** float k2 = 1000.0;					// second element of 1x2 matrix K
+  16:lab.c         **** float period = 5;				// seconds
+  17:lab.c         **** 
+  18:lab.c         **** // ALL OTHER PARAMETERS
+  19:lab.c         **** float kF = 4.0422e-6;					// motor constant (squared spin rate to force)
+  20:lab.c         **** float alpha = 3.8467;				// for converting spin rate to motor command
+  21:lab.c         **** float beta = 117.5216;					// for converting spin rate to motor command
+  22:lab.c         **** float l = 0.17145;					// spar length (m)
+  23:lab.c         **** //float m = 0.7092;					// mass (kg)
+  24:lab.c         **** float m = 0.05;
+  25:lab.c         **** float g = 9.81;					// acceleration of gravity (m / s^2)
+  26:lab.c         **** // - for computing desired pitch angle (sinusoidal with time)
+  27:lab.c         **** float input_amplitude = 0;		// amplitude of sinusoid (rad)
+  28:lab.c         **** int sample_rate = 1000;			// number of times per second that control loop runs (Hz)
+  29:lab.c         **** 
+  30:lab.c         **** // VARIABLES TO BE SENT OFF-BOARD
+  31:lab.c         **** int counter = 0;				// number of times through control loop
+  32:lab.c         **** float angle_pitch_desired = 0;	// desired pitch angle (rad)
+  33:lab.c         **** int mu1 = 0;					// motor command applied to rotor 1
+  34:lab.c         **** int mu2 = 0;					// motor command applied to rotor 2
+  35:lab.c         **** 
+  36:lab.c         **** // ALL OTHER VARIABLES
+  37:lab.c         **** float t = 0;					// current on-board time (s)
+  38:lab.c         **** float angle_pitch = 0;			// current pitch angle (rad)
+  39:lab.c         **** float angvel_pitch = 0;			// current pitch angular velocity (rad / s)
+  40:lab.c         **** float u2 = 0;					// total torque due to rotors about y axis
+  41:lab.c         **** float u4 = 0;					// total force due to rotors along -z axis
+  42:lab.c         **** float f1 = 0;					// force due to rotor 1 (front, along +x)
+  43:lab.c         **** float f2 = 0;					// force due to rotor 2 (back, along -x)
+  44:lab.c         **** float sigma1 = 0;				// spin rate of rotor 1 (rad / s)
+  45:lab.c         **** float sigma2 = 0;				// spin rate of rotor 2 (rad / s)
+  46:lab.c         **** 
+  47:lab.c         **** void lab(void) {
+ 175              	r7, r8, fp, ip, lr, pc}
+ 176              	.LCFI1:
+ 177              		sub	fp, ip, #4
+ 178              	.LCFI2:
+ 179 0000 0DC0A0E1 		.loc 1 54 0
+ 180              		ldr	r3, .L11+32
+ 181 0004 F0D92DE9 		ldr	r3, [r3, #0]
+ 182              		add	r2, r3, #1
+ 183 0008 04B04CE2 		ldr	r3, .L11+32
+ 184              		str	r2, [r3, #0]
+  48:lab.c         **** 
+  49:lab.c         **** 	//
+  50:lab.c         **** 	// DO NOT CHANGE (SHOULD ALREADY BE HERE FROM LAB 1)
+  51:lab.c         **** 	//
+  52:lab.c         **** 
+  53:lab.c         **** 	// increment counter
+  54:lab.c         **** 	counter++;
+ 185              	 0
+ 186 000c A8349FE5 		ldr	r3, .L11+32
+ 187 0010 003093E5 		ldr	r3, [r3, #0]
+ 188 0014 012083E2 		mov	r0, r3
+ 189 0018 9C349FE5 		bl	__floatsisf
+ 190 001c 002083E5 		mov	r4, r0
+  55:lab.c         **** 
+  56:lab.c         **** 	//
+  57:lab.c         **** 	// CHANGE ALL OF THIS
+  58:lab.c         **** 	//
+  59:lab.c         **** 
+  60:lab.c         **** 	// get current time (from counter and sample_rate)
+  61:lab.c         **** 	t = ((float) counter) / ((float) sample_rate);
+ 191              	3, .L11+36
+ 192 0020 94349FE5 		ldr	r3, [r3, #0]
+ 193 0024 003093E5 		mov	r0, r3
+ 194 0028 0300A0E1 		bl	__floatsisf
+ 195 002c FEFFFFEB 		mov	r3, r0
+ 196 0030 0040A0E1 		mov	r0, r4
+ 197 0034 84349FE5 		mov	r1, r3
+ 198 0038 003093E5 		bl	__divsf3
+ 199 003c 0300A0E1 		mov	r3, r0
+ 200 0040 FEFFFFEB 		mov	r2, r3
+ 201 0044 0030A0E1 		ldr	r3, .L11+40
+ 202 0048 0400A0E1 		str	r2, [r3, #0]	@ float
+ 203 004c 0310A0E1 		.loc 1 64 0
+ 204 0050 FEFFFFEB 		ldr	r3, .L11+44
+ 205 0054 0030A0E1 		ldr	r3, [r3, #0]	@ float
+ 206 0058 0320A0E1 		mov	r0, r3
+ 207 005c 60349FE5 		ldr	r1, .L11+48	@ float
+ 208 0060 002083E5 		bl	__divsf3
+  62:lab.c         **** 
+  63:lab.c         **** 	// get desired pitch angle (from input_amplitude, t, and period)
+  64:lab.c         **** 	angle_pitch_desired = ((float) (input_amplitude / 100.0)) * sin(( 2.0*M_PI ) / ((float) period) * 
+ 209              	0, r3
+ 210 0064 5C349FE5 		bl	__extendsfdf2
+ 211 0068 003093E5 		mov	r7, r0
+ 212 006c 0300A0E1 		mov	r8, r1
+ 213 0070 54149FE5 		ldr	r3, .L11+52
+ 214 0074 FEFFFFEB 		ldr	r3, [r3, #0]	@ float
+ 215 0078 0030A0E1 		mov	r0, r3
+ 216 007c 0300A0E1 		bl	__extendsfdf2
+ 217 0080 FEFFFFEB 		mov	r3, r0
+ 218 0084 0070A0E1 		mov	r4, r1
+ 219 0088 0180A0E1 		adr	r0, .L11
+ 220 008c 3C349FE5 		ldmia	r0, {r0-r1}
+ 221 0090 003093E5 		mov	r2, r3
+ 222 0094 0300A0E1 		mov	r3, r4
+ 223 0098 FEFFFFEB 		bl	__divdf3
+ 224 009c 0030A0E1 		mov	r3, r0
+ 225 00a0 0140A0E1 		mov	r4, r1
+ 226 00a4 3F0E8FE2 		mov	r5, r3
+ 227 00a8 030090E8 		mov	r6, r4
+ 228 00ac 0320A0E1 		ldr	r3, .L11+40
+ 229 00b0 0430A0E1 		ldr	r3, [r3, #0]	@ float
+ 230 00b4 FEFFFFEB 		mov	r0, r3
+ 231 00b8 0030A0E1 		bl	__extendsfdf2
+ 232 00bc 0140A0E1 		mov	r3, r0
+ 233 00c0 0350A0E1 		mov	r4, r1
+ 234 00c4 0460A0E1 		mov	r0, r5
+ 235 00c8 F4339FE5 		mov	r1, r6
+ 236 00cc 003093E5 		mov	r2, r3
+ 237 00d0 0300A0E1 		mov	r3, r4
+ 238 00d4 FEFFFFEB 		bl	__muldf3
+ 239 00d8 0030A0E1 		mov	r3, r0
+ 240 00dc 0140A0E1 		mov	r4, r1
+ 241 00e0 0500A0E1 		mov	r0, r3
+ 242 00e4 0610A0E1 		mov	r1, r4
+ 243 00e8 0320A0E1 		bl	sin
+ 244 00ec 0430A0E1 		mov	r3, r0
+ 245 00f0 FEFFFFEB 		mov	r4, r1
+ 246 00f4 0030A0E1 		mov	r0, r7
+ 247 00f8 0140A0E1 		mov	r1, r8
+ 248 00fc 0300A0E1 		mov	r2, r3
+ 249 0100 0410A0E1 		mov	r3, r4
+ 250 0104 FEFFFFEB 		bl	__muldf3
+ 251 0108 0030A0E1 		mov	r3, r0
+ 252 010c 0140A0E1 		mov	r4, r1
+ 253 0110 0700A0E1 		mov	r0, r3
+ 254 0114 0810A0E1 		mov	r1, r4
+ 255 0118 0320A0E1 		bl	__truncdfsf2
+ 256 011c 0430A0E1 		mov	r2, r0
+ 257 0120 FEFFFFEB 		ldr	r3, .L11+56
+ 258 0124 0030A0E1 		str	r2, [r3, #0]	@ float
+ 259 0128 0140A0E1 		.loc 1 69 0
+ 260 012c 0300A0E1 		ldr	r3, .L11+60
+ 261 0130 0410A0E1 		ldr	r3, [r3, #28]
+ 262 0134 FEFFFFEB 		mov	r0, r3
+ 263 0138 0020A0E1 		bl	__floatsisf
+ 264 013c 90339FE5 		mov	r3, r0
+ 265 0140 002083E5 		mov	r0, r3
+  65:lab.c         **** 
+  66:lab.c         **** 	// get pitch angle and angular velocity from sensor data:
+  67:lab.c         **** 	// 		RO_ALL_Data.angle_pitch
+  68:lab.c         **** 	//		RO_ALL_Data.angvel_pitch
+  69:lab.c         **** 	angle_pitch = ((float) RO_ALL_Data.angle_pitch) * 0.001 *  M_PI / 180.0;
+ 266              	v	r1, r4
+ 267 0144 8C339FE5 		adr	r2, .L11+8
+ 268 0148 1C3093E5 		ldmia	r2, {r2-r3}
+ 269 014c 0300A0E1 		bl	__muldf3
+ 270 0150 FEFFFFEB 		mov	r3, r0
+ 271 0154 0030A0E1 		mov	r4, r1
+ 272 0158 0300A0E1 		mov	r0, r3
+ 273 015c FEFFFFEB 		mov	r1, r4
+ 274 0160 0030A0E1 		adr	r2, .L11+16
+ 275 0164 0140A0E1 		ldmia	r2, {r2-r3}
+ 276 0168 0300A0E1 		bl	__muldf3
+ 277 016c 0410A0E1 		mov	r3, r0
+ 278 0170 CB2F8FE2 		mov	r4, r1
+ 279 0174 0C0092E8 		mov	r0, r3
+ 280 0178 FEFFFFEB 		mov	r1, r4
+ 281 017c 0030A0E1 		mov	r2, #1073741824
+ 282 0180 0140A0E1 		add	r2, r2, #6684672
+ 283 0184 0300A0E1 		add	r2, r2, #32768
+ 284 0188 0410A0E1 		mov	r3, #0
+ 285 018c C62F8FE2 		bl	__divdf3
+ 286 0190 0C0092E8 		mov	r3, r0
+ 287 0194 FEFFFFEB 		mov	r4, r1
+ 288 0198 0030A0E1 		mov	r0, r3
+ 289 019c 0140A0E1 		mov	r1, r4
+ 290 01a0 0300A0E1 		bl	__truncdfsf2
+ 291 01a4 0410A0E1 		mov	r2, r0
+ 292 01a8 0121A0E3 		ldr	r3, .L11+64
+ 293 01ac 662882E2 		str	r2, [r3, #0]	@ float
+ 294 01b0 022982E2 		.loc 1 70 0
+ 295 01b4 0030A0E3 		ldr	r3, .L11+60
+ 296 01b8 FEFFFFEB 		ldr	r3, [r3, #40]
+ 297 01bc 0030A0E1 		mov	r0, r3
+ 298 01c0 0140A0E1 		bl	__floatsisf
+ 299 01c4 0300A0E1 		mov	r3, r0
+ 300 01c8 0410A0E1 		mov	r0, r3
+ 301 01cc FEFFFFEB 		bl	__extendsfdf2
+ 302 01d0 0020A0E1 		mov	r3, r0
+ 303 01d4 00339FE5 		mov	r4, r1
+ 304 01d8 002083E5 		mov	r0, r3
+  70:lab.c         **** 	angvel_pitch = ((float) RO_ALL_Data.angvel_pitch) * 0.0154 *  M_PI / 180.0;
+ 305              	 {r2-r3}
+ 306 01dc F4329FE5 		bl	__muldf3
+ 307 01e0 283093E5 		mov	r3, r0
+ 308 01e4 0300A0E1 		mov	r4, r1
+ 309 01e8 FEFFFFEB 		mov	r0, r3
+ 310 01ec 0030A0E1 		mov	r1, r4
+ 311 01f0 0300A0E1 		adr	r2, .L11+16
+ 312 01f4 FEFFFFEB 		ldmia	r2, {r2-r3}
+ 313 01f8 0030A0E1 		bl	__muldf3
+ 314 01fc 0140A0E1 		mov	r3, r0
+ 315 0200 0300A0E1 		mov	r4, r1
+ 316 0204 0410A0E1 		mov	r0, r3
+ 317 0208 A92F8FE2 		mov	r1, r4
+ 318 020c 0C0092E8 		mov	r2, #1073741824
+ 319 0210 FEFFFFEB 		add	r2, r2, #6684672
+ 320 0214 0030A0E1 		add	r2, r2, #32768
+ 321 0218 0140A0E1 		mov	r3, #0
+ 322 021c 0300A0E1 		bl	__divdf3
+ 323 0220 0410A0E1 		mov	r3, r0
+ 324 0224 0A2D8FE2 		mov	r4, r1
+ 325 0228 0C0092E8 		mov	r0, r3
+ 326 022c FEFFFFEB 		mov	r1, r4
+ 327 0230 0030A0E1 		bl	__truncdfsf2
+ 328 0234 0140A0E1 		mov	r2, r0
+ 329 0238 0300A0E1 		ldr	r3, .L11+68
+ 330 023c 0410A0E1 		str	r2, [r3, #0]	@ float
+ 331 0240 0121A0E3 		.loc 1 74 0
+ 332 0244 662882E2 		ldr	r3, .L11+72
+ 333 0248 022982E2 		ldr	r3, [r3, #0]	@ float
+ 334 024c 0030A0E3 		eor	r3, r3, #-2147483648
+ 335 0250 FEFFFFEB 		mov	r0, r3
+ 336 0254 0030A0E1 		bl	__extendsfdf2
+ 337 0258 0140A0E1 		mov	r3, r0
+ 338 025c 0300A0E1 		mov	r4, r1
+ 339 0260 0410A0E1 		mov	r0, r3
+ 340 0264 FEFFFFEB 		mov	r1, r4
+ 341 0268 0020A0E1 		mov	r2, #1073741824
+ 342 026c 6C329FE5 		add	r2, r2, #9371648
+ 343 0270 002083E5 		add	r2, r2, #16384
+  71:lab.c         **** 
+  72:lab.c         **** 	// get total torque due to rotors about y axis
+  73:lab.c         **** 	// from k1, k2, angle_pitch, angle_pitch_desired, and angvel_pitch
+  74:lab.c         **** 	u2 = (-k1 / 1000.0)*(angle_pitch - angle_pitch_desired) - ((k2 / 1000.0) * angvel_pitch);
+ 344              	ov	r4, r1
+ 345 0274 68329FE5 		mov	r5, r3
+ 346 0278 003093E5 		mov	r6, r4
+ 347 027c 023123E2 		ldr	r3, .L11+64
+ 348 0280 0300A0E1 		ldr	r2, [r3, #0]	@ float
+ 349 0284 FEFFFFEB 		ldr	r3, .L11+56
+ 350 0288 0030A0E1 		ldr	r3, [r3, #0]	@ float
+ 351 028c 0140A0E1 		mov	r0, r2
+ 352 0290 0300A0E1 		mov	r1, r3
+ 353 0294 0410A0E1 		bl	__subsf3
+ 354 0298 0121A0E3 		mov	r3, r0
+ 355 029c 8F2882E2 		mov	r0, r3
+ 356 02a0 012982E2 		bl	__extendsfdf2
+ 357 02a4 0030A0E3 		mov	r3, r0
+ 358 02a8 FEFFFFEB 		mov	r4, r1
+ 359 02ac 0030A0E1 		mov	r0, r5
+ 360 02b0 0140A0E1 		mov	r1, r6
+ 361 02b4 0350A0E1 		mov	r2, r3
+ 362 02b8 0460A0E1 		mov	r3, r4
+ 363 02bc 18329FE5 		bl	__muldf3
+ 364 02c0 002093E5 		mov	r3, r0
+ 365 02c4 08329FE5 		mov	r4, r1
+ 366 02c8 003093E5 		mov	r7, r3
+ 367 02cc 0200A0E1 		mov	r8, r4
+ 368 02d0 0310A0E1 		ldr	r3, .L11+76
+ 369 02d4 FEFFFFEB 		ldr	r3, [r3, #0]	@ float
+ 370 02d8 0030A0E1 		mov	r0, r3
+ 371 02dc 0300A0E1 		bl	__extendsfdf2
+ 372 02e0 FEFFFFEB 		mov	r3, r0
+ 373 02e4 0030A0E1 		mov	r4, r1
+ 374 02e8 0140A0E1 		mov	r0, r3
+ 375 02ec 0500A0E1 		mov	r1, r4
+ 376 02f0 0610A0E1 		mov	r2, #-1073741824
+ 377 02f4 0320A0E1 		add	r2, r2, #9371648
+ 378 02f8 0430A0E1 		add	r2, r2, #16384
+ 379 02fc FEFFFFEB 		mov	r3, #0
+ 380 0300 0030A0E1 		bl	__divdf3
+ 381 0304 0140A0E1 		mov	r3, r0
+ 382 0308 0370A0E1 		mov	r4, r1
+ 383 030c 0480A0E1 		mov	r5, r3
+ 384 0310 D0319FE5 		mov	r6, r4
+ 385 0314 003093E5 		ldr	r3, .L11+68
+ 386 0318 0300A0E1 		ldr	r3, [r3, #0]	@ float
+ 387 031c FEFFFFEB 		mov	r0, r3
+ 388 0320 0030A0E1 		bl	__extendsfdf2
+ 389 0324 0140A0E1 		mov	r3, r0
+ 390 0328 0300A0E1 		mov	r4, r1
+ 391 032c 0410A0E1 		mov	r0, r5
+ 392 0330 0321A0E3 		mov	r1, r6
+ 393 0334 8F2882E2 		mov	r2, r3
+ 394 0338 012982E2 		mov	r3, r4
+ 395 033c 0030A0E3 		bl	__muldf3
+ 396 0340 FEFFFFEB 		mov	r3, r0
+ 397 0344 0030A0E1 		mov	r4, r1
+ 398 0348 0140A0E1 		mov	r0, r7
+ 399 034c 0350A0E1 		mov	r1, r8
+ 400 0350 0460A0E1 		mov	r2, r3
+ 401 0354 84319FE5 		mov	r3, r4
+ 402 0358 003093E5 		bl	__adddf3
+ 403 035c 0300A0E1 		mov	r3, r0
+ 404 0360 FEFFFFEB 		mov	r4, r1
+ 405 0364 0030A0E1 		mov	r0, r3
+ 406 0368 0140A0E1 		mov	r1, r4
+ 407 036c 0500A0E1 		bl	__truncdfsf2
+ 408 0370 0610A0E1 		mov	r2, r0
+ 409 0374 0320A0E1 		ldr	r3, .L11+92
+ 410 0378 0430A0E1 		str	r2, [r3, #0]	@ float
+ 411 037c FEFFFFEB 		.loc 1 78 0
+ 412 0380 0030A0E1 		ldr	r3, .L11+80
+ 413 0384 0140A0E1 		ldr	r2, [r3, #0]	@ float
+ 414 0388 0700A0E1 		ldr	r3, .L11+84
+ 415 038c 0810A0E1 		ldr	r3, [r3, #0]	@ float
+ 416 0390 0320A0E1 		mov	r0, r2
+ 417 0394 0430A0E1 		mov	r1, r3
+ 418 0398 FEFFFFEB 		bl	__mulsf3
+ 419 039c 0030A0E1 		mov	r3, r0
+ 420 03a0 0140A0E1 		mov	r0, r3
+ 421 03a4 0300A0E1 		bl	__extendsfdf2
+ 422 03a8 0410A0E1 		mov	r5, r0
+ 423 03ac FEFFFFEB 		mov	r6, r1
+ 424 03b0 0020A0E1 		ldr	r3, .L11+64
+ 425 03b4 3C319FE5 		ldr	r3, [r3, #0]	@ float
+ 426 03b8 002083E5 		mov	r0, r3
+  75:lab.c         **** 
+  76:lab.c         **** 	// get total force due to rotors along -z axis
+  77:lab.c         **** 	// from m, g, and angle_pitch
+  78:lab.c         **** 	u4 = (m * g) / cos(angle_pitch);
+ 427              	r0
+ 428 03bc 28319FE5 		mov	r4, r1
+ 429 03c0 002093E5 		mov	r0, r5
+ 430 03c4 24319FE5 		mov	r1, r6
+ 431 03c8 003093E5 		mov	r2, r3
+ 432 03cc 0200A0E1 		mov	r3, r4
+ 433 03d0 0310A0E1 		bl	__divdf3
+ 434 03d4 FEFFFFEB 		mov	r3, r0
+ 435 03d8 0030A0E1 		mov	r4, r1
+ 436 03dc 0300A0E1 		mov	r0, r3
+ 437 03e0 FEFFFFEB 		mov	r1, r4
+ 438 03e4 0050A0E1 		bl	__truncdfsf2
+ 439 03e8 0160A0E1 		mov	r2, r0
+ 440 03ec E8309FE5 		ldr	r3, .L11+88
+ 441 03f0 003093E5 		str	r2, [r3, #0]	@ float
+ 442 03f4 0300A0E1 		.loc 1 81 0
+ 443 03f8 FEFFFFEB 		ldr	r3, .L11+88
+ 444 03fc 0030A0E1 		ldr	r3, [r3, #0]	@ float
+ 445 0400 0140A0E1 		mov	r0, r3
+ 446 0404 0300A0E1 		bl	__extendsfdf2
+ 447 0408 0410A0E1 		mov	r3, r0
+ 448 040c FEFFFFEB 		mov	r4, r1
+ 449 0410 0030A0E1 		mov	r0, r3
+ 450 0414 0140A0E1 		mov	r1, r4
+ 451 0418 0500A0E1 		mov	r2, #1073741824
+ 452 041c 0610A0E1 		mov	r3, #0
+ 453 0420 0320A0E1 		bl	__divdf3
+ 454 0424 0430A0E1 		mov	r3, r0
+ 455 0428 FEFFFFEB 		mov	r4, r1
+ 456 042c 0030A0E1 		mov	r7, r3
+ 457 0430 0140A0E1 		mov	r8, r4
+ 458 0434 0300A0E1 		ldr	r3, .L11+92
+ 459 0438 0410A0E1 		ldr	r3, [r3, #0]	@ float
+ 460 043c FEFFFFEB 		mov	r0, r3
+ 461 0440 0020A0E1 		bl	__extendsfdf2
+ 462 0444 A8309FE5 		b	.L12
+ 463 0448 002083E5 	.L13:
+  79:lab.c         **** 
+  80:lab.c         **** 	// get forces from u2, u4, and l
+  81:lab.c         **** 	f1 = (u4 / 2.0) + (u2 / (2.0*l));
+ 464              	ord	1413754136
+ 465 044c A0309FE5 		.word	1062232653
+ 466 0450 003093E5 		.word	-755914244
+ 467 0454 0300A0E1 		.word	1074340347
+ 468 0458 FEFFFFEB 		.word	1413754136
+ 469 045c 0030A0E1 		.word	1066371593
+ 470 0460 0140A0E1 		.word	48103634
+ 471 0464 0300A0E1 		.word	counter
+ 472 0468 0410A0E1 		.word	sample_rate
+ 473 046c 0121A0E3 		.word	t
+ 474 0470 0030A0E3 		.word	input_amplitude
+ 475 0474 FEFFFFEB 		.word	1120403456
+ 476 0478 0030A0E1 		.word	period
+ 477 047c 0140A0E1 		.word	angle_pitch_desired
+ 478 0480 0370A0E1 		.word	RO_ALL_Data
+ 479 0484 0480A0E1 		.word	angle_pitch
+ 480 0488 68309FE5 		.word	angvel_pitch
+ 481 048c 003093E5 		.word	k1
+ 482 0490 0300A0E1 		.word	k2
+ 483 0494 FEFFFFEB 		.word	m
+ 484 0498 230000EA 		.word	g
+ 485              		.word	u4
+ 486              		.word	u2
+ 487              		.word	l
+ 488 049c FB211940 		.word	f1
+ 489 04a0 182D4454 		.word	f2
+ 490 04a4 4D62503F 		.word	kF
+ 491 04a8 FCA9F1D2 		.word	sigma1
+ 492 04ac FB210940 		.word	sigma2
+ 493 04b0 182D4454 		.word	beta
+ 494 04b4 098A8F3F 		.word	alpha
+ 495 04b8 D200DE02 		.word	WO_SDK
+ 496 04bc 00000000 		.word	mu1
+ 497 04c0 00000000 		.word	mu2
+ 498 04c4 00000000 		.word	WO_Direct_Individual_Motor_Control
+ 499 04c8 00000000 	.L12:
+ 500 04cc 0000C842 		mov	r5, r0
+ 501 04d0 00000000 		mov	r6, r1
+ 502 04d4 00000000 		ldr	r3, .L11+96
+ 503 04d8 00000000 		ldr	r3, [r3, #0]	@ float
+ 504 04dc 00000000 		mov	r0, r3
+ 505 04e0 00000000 		bl	__extendsfdf2
+ 506 04e4 00000000 		mov	r3, r0
+ 507 04e8 00000000 		mov	r4, r1
+ 508 04ec 00000000 		mov	r0, r3
+ 509 04f0 00000000 		mov	r1, r4
+ 510 04f4 00000000 		mov	r2, r3
+ 511 04f8 00000000 		mov	r3, r4
+ 512 04fc 00000000 		bl	__adddf3
+ 513 0500 00000000 		mov	r3, r0
+ 514 0504 00000000 		mov	r4, r1
+ 515 0508 00000000 		mov	r0, r5
+ 516 050c 00000000 		mov	r1, r6
+ 517 0510 00000000 		mov	r2, r3
+ 518 0514 00000000 		mov	r3, r4
+ 519 0518 00000000 		bl	__divdf3
+ 520 051c 00000000 		mov	r3, r0
+ 521 0520 00000000 		mov	r4, r1
+ 522 0524 00000000 		mov	r0, r7
+ 523 0528 00000000 		mov	r1, r8
+ 524              		mov	r2, r3
+ 525 052c 0050A0E1 		mov	r3, r4
+ 526 0530 0160A0E1 		bl	__adddf3
+ 527 0534 40301FE5 		mov	r3, r0
+ 528 0538 003093E5 		mov	r4, r1
+ 529 053c 0300A0E1 		mov	r0, r3
+ 530 0540 FEFFFFEB 		mov	r1, r4
+ 531 0544 0030A0E1 		bl	__truncdfsf2
+ 532 0548 0140A0E1 		mov	r2, r0
+ 533 054c 0300A0E1 		ldr	r3, .L11+100
+ 534 0550 0410A0E1 		str	r2, [r3, #0]	@ float
+ 535 0554 0320A0E1 		.loc 1 82 0
+ 536 0558 0430A0E1 		ldr	r3, .L11+88
+ 537 055c FEFFFFEB 		ldr	r3, [r3, #0]	@ float
+ 538 0560 0030A0E1 		mov	r0, r3
+ 539 0564 0140A0E1 		bl	__extendsfdf2
+ 540 0568 0500A0E1 		mov	r3, r0
+ 541 056c 0610A0E1 		mov	r4, r1
+ 542 0570 0320A0E1 		mov	r0, r3
+ 543 0574 0430A0E1 		mov	r1, r4
+ 544 0578 FEFFFFEB 		mov	r2, #1073741824
+ 545 057c 0030A0E1 		mov	r3, #0
+ 546 0580 0140A0E1 		bl	__divdf3
+ 547 0584 0700A0E1 		mov	r3, r0
+ 548 0588 0810A0E1 		mov	r4, r1
+ 549 058c 0320A0E1 		mov	r7, r3
+ 550 0590 0430A0E1 		mov	r8, r4
+ 551 0594 FEFFFFEB 		ldr	r3, .L11+92
+ 552 0598 0030A0E1 		ldr	r3, [r3, #0]	@ float
+ 553 059c 0140A0E1 		mov	r0, r3
+ 554 05a0 0300A0E1 		bl	__extendsfdf2
+ 555 05a4 0410A0E1 		mov	r5, r0
+ 556 05a8 FEFFFFEB 		mov	r6, r1
+ 557 05ac 0020A0E1 		ldr	r3, .L11+96
+ 558 05b0 B8301FE5 		ldr	r3, [r3, #0]	@ float
+ 559 05b4 002083E5 		mov	r0, r3
+  82:lab.c         **** 	f2 = (u4 / 2.0) - (u2 / (2.0*l));
+ 560              	 #0
+ 561 05b8 CC301FE5 		bl	__muldf3
+ 562 05bc 003093E5 		mov	r3, r0
+ 563 05c0 0300A0E1 		mov	r4, r1
+ 564 05c4 FEFFFFEB 		mov	r0, r5
+ 565 05c8 0030A0E1 		mov	r1, r6
+ 566 05cc 0140A0E1 		mov	r2, r3
+ 567 05d0 0300A0E1 		mov	r3, r4
+ 568 05d4 0410A0E1 		bl	__divdf3
+ 569 05d8 0121A0E3 		mov	r3, r0
+ 570 05dc 0030A0E3 		mov	r4, r1
+ 571 05e0 FEFFFFEB 		mov	r0, r7
+ 572 05e4 0030A0E1 		mov	r1, r8
+ 573 05e8 0140A0E1 		mov	r2, r3
+ 574 05ec 0370A0E1 		mov	r3, r4
+ 575 05f0 0480A0E1 		bl	__adddf3
+ 576 05f4 04311FE5 		mov	r3, r0
+ 577 05f8 003093E5 		mov	r4, r1
+ 578 05fc 0300A0E1 		mov	r0, r3
+ 579 0600 FEFFFFEB 		mov	r1, r4
+ 580 0604 0050A0E1 		bl	__truncdfsf2
+ 581 0608 0160A0E1 		mov	r2, r0
+ 582 060c 18311FE5 		ldr	r3, .L11+104
+ 583 0610 003093E5 		str	r2, [r3, #0]	@ float
+ 584 0614 0300A0E1 		.loc 1 85 0
+ 585 0618 FEFFFFEB 		ldr	r3, .L11+100
+ 586 061c 0030A0E1 		ldr	r2, [r3, #0]	@ float
+ 587 0620 0140A0E1 		ldr	r3, .L11+108
+ 588 0624 0300A0E1 		ldr	r3, [r3, #0]	@ float
+ 589 0628 0410A0E1 		mov	r0, r2
+ 590 062c 0321A0E3 		mov	r1, r3
+ 591 0630 0030A0E3 		bl	__divsf3
+ 592 0634 FEFFFFEB 		mov	r3, r0
+ 593 0638 0030A0E1 		mov	r0, r3
+ 594 063c 0140A0E1 		bl	__extendsfdf2
+ 595 0640 0500A0E1 		mov	r3, r0
+ 596 0644 0610A0E1 		mov	r4, r1
+ 597 0648 0320A0E1 		mov	r0, r3
+ 598 064c 0430A0E1 		mov	r1, r4
+ 599 0650 FEFFFFEB 		bl	sqrt
+ 600 0654 0030A0E1 		mov	r3, r0
+ 601 0658 0140A0E1 		mov	r4, r1
+ 602 065c 0700A0E1 		mov	r0, r3
+ 603 0660 0810A0E1 		mov	r1, r4
+ 604 0664 0320A0E1 		bl	__truncdfsf2
+ 605 0668 0430A0E1 		mov	r2, r0
+ 606 066c FEFFFFEB 		ldr	r3, .L11+112
+ 607 0670 0030A0E1 		str	r2, [r3, #0]	@ float
+ 608 0674 0140A0E1 		.loc 1 86 0
+ 609 0678 0300A0E1 		ldr	r3, .L11+104
+ 610 067c 0410A0E1 		ldr	r2, [r3, #0]	@ float
+ 611 0680 FEFFFFEB 		ldr	r3, .L11+108
+ 612 0684 0020A0E1 		ldr	r3, [r3, #0]	@ float
+ 613 0688 8C311FE5 		mov	r0, r2
+ 614 068c 002083E5 		mov	r1, r3
+  83:lab.c         **** 
+  84:lab.c         **** 	// get spin rates from f1, f2, and kF
+  85:lab.c         **** 	sigma1 = sqrt(f1 / kF);
+ 615              		mov	r3, r0
+ 616 0690 98311FE5 		mov	r4, r1
+ 617 0694 002093E5 		mov	r0, r3
+ 618 0698 98311FE5 		mov	r1, r4
+ 619 069c 003093E5 		bl	sqrt
+ 620 06a0 0200A0E1 		mov	r3, r0
+ 621 06a4 0310A0E1 		mov	r4, r1
+ 622 06a8 FEFFFFEB 		mov	r0, r3
+ 623 06ac 0030A0E1 		mov	r1, r4
+ 624 06b0 0300A0E1 		bl	__truncdfsf2
+ 625 06b4 FEFFFFEB 		mov	r2, r0
+ 626 06b8 0030A0E1 		ldr	r3, .L11+116
+ 627 06bc 0140A0E1 		str	r2, [r3, #0]	@ float
+ 628 06c0 0300A0E1 		.loc 1 89 0
+ 629 06c4 0410A0E1 		ldr	r3, .L11+112
+ 630 06c8 FEFFFFEB 		ldr	r2, [r3, #0]	@ float
+ 631 06cc 0030A0E1 		ldr	r3, .L11+120
+ 632 06d0 0140A0E1 		ldr	r3, [r3, #0]	@ float
+ 633 06d4 0300A0E1 		mov	r0, r2
+ 634 06d8 0410A0E1 		mov	r1, r3
+ 635 06dc FEFFFFEB 		bl	__subsf3
+ 636 06e0 0020A0E1 		mov	r3, r0
+ 637 06e4 E0311FE5 		mov	r2, r3
+ 638 06e8 002083E5 		ldr	r3, .L11+124
+  86:lab.c         **** 	sigma2 = sqrt(f2 / kF);
+ 639              	t
+ 640 06ec F0311FE5 		mov	r0, r2
+ 641 06f0 002093E5 		mov	r1, r3
+ 642 06f4 F4311FE5 		bl	__divsf3
+ 643 06f8 003093E5 		mov	r3, r0
+ 644 06fc 0200A0E1 		mov	r0, r3
+ 645 0700 0310A0E1 		bl	__fixsfsi
+ 646 0704 FEFFFFEB 		mov	r2, r0
+ 647 0708 0030A0E1 		ldr	r3, .L11+132
+ 648 070c 0300A0E1 		str	r2, [r3, #0]
+ 649 0710 FEFFFFEB 		.loc 1 90 0
+ 650 0714 0030A0E1 		ldr	r3, .L11+116
+ 651 0718 0140A0E1 		ldr	r2, [r3, #0]	@ float
+ 652 071c 0300A0E1 		ldr	r3, .L11+120
+ 653 0720 0410A0E1 		ldr	r3, [r3, #0]	@ float
+ 654 0724 FEFFFFEB 		mov	r0, r2
+ 655 0728 0030A0E1 		mov	r1, r3
+ 656 072c 0140A0E1 		bl	__subsf3
+ 657 0730 0300A0E1 		mov	r3, r0
+ 658 0734 0410A0E1 		mov	r2, r3
+ 659 0738 FEFFFFEB 		ldr	r3, .L11+124
+ 660 073c 0020A0E1 		ldr	r3, [r3, #0]	@ float
+ 661 0740 38321FE5 		mov	r0, r2
+ 662 0744 002083E5 		mov	r1, r3
+  87:lab.c         **** 
+  88:lab.c         **** 	// get motor commands from alpha, beta, sigma1, and sigma2
+  89:lab.c         **** 	mu1 = (sigma1 - beta) / alpha;
+ 663              	
+ 664 0748 44321FE5 		mov	r0, r3
+ 665 074c 002093E5 		bl	__fixsfsi
+ 666 0750 44321FE5 		mov	r2, r0
+ 667 0754 003093E5 		ldr	r3, .L11+136
+ 668 0758 0200A0E1 		str	r2, [r3, #0]
+ 669 075c 0310A0E1 		.loc 1 97 0
+ 670 0760 FEFFFFEB 		ldr	r3, .L11+132
+ 671 0764 0030A0E1 		ldr	r3, [r3, #0]
+ 672 0768 0320A0E1 		cmp	r3, #200
+ 673 076c 5C321FE5 		ble	.L2
+ 674 0770 003093E5 		.loc 1 98 0
+ 675 0774 0200A0E1 		ldr	r2, .L11+132
+ 676 0778 0310A0E1 		mov	r3, #200
+ 677 077c FEFFFFEB 		str	r3, [r2, #0]
+ 678 0780 0030A0E1 		b	.L4
+ 679 0784 0300A0E1 	.L2:
+ 680 0788 FEFFFFEB 		.loc 1 99 0
+ 681 078c 0020A0E1 		ldr	r3, .L11+132
+ 682 0790 78321FE5 		ldr	r3, [r3, #0]
+ 683 0794 002083E5 		cmp	r3, #0
+  90:lab.c         **** 	mu2 = (sigma2 - beta) / alpha;
+ 684              	 0
+ 685 0798 90321FE5 		ldr	r2, .L11+132
+ 686 079c 002093E5 		mov	r3, #1
+ 687 07a0 94321FE5 		str	r3, [r2, #0]
+ 688 07a4 003093E5 	.L4:
+ 689 07a8 0200A0E1 		.loc 1 102 0
+ 690 07ac 0310A0E1 		ldr	r3, .L11+136
+ 691 07b0 FEFFFFEB 		ldr	r3, [r3, #0]
+ 692 07b4 0030A0E1 		cmp	r3, #200
+ 693 07b8 0320A0E1 		ble	.L6
+ 694 07bc AC321FE5 		.loc 1 103 0
+ 695 07c0 003093E5 		ldr	r2, .L11+136
+ 696 07c4 0200A0E1 		mov	r3, #200
+ 697 07c8 0310A0E1 		str	r3, [r2, #0]
+ 698 07cc FEFFFFEB 		b	.L8
+ 699 07d0 0030A0E1 	.L6:
+ 700 07d4 0300A0E1 		.loc 1 104 0
+ 701 07d8 FEFFFFEB 		ldr	r3, .L11+136
+ 702 07dc 0020A0E1 		ldr	r3, [r3, #0]
+ 703 07e0 C4321FE5 		cmp	r3, #0
+ 704 07e4 002083E5 		bgt	.L8
+  91:lab.c         **** 
+  92:lab.c         **** 	//
+  93:lab.c         **** 	// DO NOT CHANGE
+  94:lab.c         **** 	//
+  95:lab.c         **** 
+  96:lab.c         **** 	// bound motor commands (VERY IMPORTANT - DO NOT CHANGE)
+  97:lab.c         **** 	if (mu1 > 200) {
+ 705              	, .L11+136
+ 706 07e8 D0321FE5 		mov	r3, #1
+ 707 07ec 003093E5 		str	r3, [r2, #0]
+ 708 07f0 C80053E3 	.L8:
+ 709 07f4 030000DA 		.loc 1 109 0
+  98:lab.c         **** 		mu1 = 200;
+ 710              	r2, .L11+128
+ 711 07f8 E0221FE5 		mov	r3, #0
+ 712 07fc C830A0E3 		strb	r3, [r2, #0]
+ 713 0800 003082E5 		.loc 1 110 0
+ 714 0804 060000EA 		ldr	r2, .L11+128
+ 715              		mov	r3, #1
+  99:lab.c         **** 	} else if (mu1 < 1) {
+ 716              	r3, [r2, #1]
+ 717 0808 F0321FE5 		.loc 1 113 0
+ 718 080c 003093E5 		ldr	r3, .L11+132
+ 719 0810 000053E3 		ldr	r3, [r3, #0]
+ 720 0814 020000CA 		and	r3, r3, #255
+ 100:lab.c         **** 		mu1 = 1;
+ 721              	r2, .L11+140
+ 722 0818 00231FE5 		strb	r3, [r2, #0]
+ 723 081c 0130A0E3 		.loc 1 114 0
+ 724 0820 003082E5 		ldr	r3, .L11+136
+ 725              		ldr	r3, [r3, #0]
+ 101:lab.c         **** 	}
+ 102:lab.c         **** 	if (mu2 > 200) {
+ 726              	r3, r3, #255
+ 727 0824 08331FE5 		ldr	r2, .L11+140
+ 728 0828 003093E5 		strb	r3, [r2, #1]
+ 729 082c C80053E3 		.loc 1 115 0
+ 730 0830 030000DA 		ldr	r2, .L11+140
+ 103:lab.c         **** 		mu2 = 200;
+ 731              	r3, #0
+ 732 0834 18231FE5 		strb	r3, [r2, #2]
+ 733 0838 C830A0E3 		.loc 1 116 0
+ 734 083c 003082E5 		ldr	r2, .L11+140
+ 735 0840 060000EA 		mov	r3, #0
+ 736              		strb	r3, [r2, #3]
+ 104:lab.c         **** 	} else if (mu2 < 1) {
+ 737              	1 117 0
+ 738 0844 28331FE5 		sub	sp, fp, #32
+ 739 0848 003093E5 		ldmfd	sp, {r4, r5, r6, r7, r8, fp, sp, lr}
+ 740 084c 000053E3 		bx	lr
+ 741 0850 020000CA 	.LFE2:
+ 105:lab.c         **** 		mu2 = 1;
+ 742              	e	lab, .-lab
+ 743 0854 38231FE5 		.comm	GPS_timeout,4,4
+ 744 0858 0130A0E3 		.comm	SYSTEM_initialized,1,1
+ 745 085c 003082E5 		.section	.debug_frame,"",%progbits
+ 746              	.Lframe0:
+ 106:lab.c         **** 	}
+ 107:lab.c         **** 
+ 108:lab.c         **** 	// make sure motor command settings are correct (VERY IMPORTANT - DO NOT CHANGE)
+ 109:lab.c         **** 	WO_SDK.ctrl_mode = 0x00;	// 0x00: direct individual motor control
+ 747              	te	.LECIE0-.LSCIE0
+ 748 0860 4C231FE5 	.LSCIE0:
+ 749 0864 0030A0E3 		.4byte	0xffffffff
+ 750 0868 0030C2E5 		.byte	0x1
+ 110:lab.c         **** 	WO_SDK.ctrl_enabled = 1;	// 1: enable control by higher-level processor (this code)
+ 751              	cii	"\000"
+ 752 086c 58231FE5 		.uleb128 0x1
+ 753 0870 0130A0E3 		.sleb128 -4
+ 754 0874 0130C2E5 		.byte	0xe
+ 111:lab.c         **** 
+ 112:lab.c         **** 	// apply motor commands (numbers are different because C starts index at 0)
+ 113:lab.c         **** 	WO_Direct_Individual_Motor_Control.motor[0] = mu1;
+ 755              	te	0xc
+ 756 0878 60331FE5 		.uleb128 0xd
+ 757 087c 003093E5 		.uleb128 0x0
+ 758 0880 FF3003E2 		.align	2
+ 759 0884 64231FE5 	.LECIE0:
+ 760 0888 0030C2E5 	.LSFDE0:
+ 114:lab.c         ****     WO_Direct_Individual_Motor_Control.motor[1] = mu2;
+ 761              	e	.LEFDE0-.LASFDE0
+ 762 088c 70331FE5 	.LASFDE0:
+ 763 0890 003093E5 		.4byte	.Lframe0
+ 764 0894 FF3003E2 		.4byte	.LFB2
+ 765 0898 78231FE5 		.4byte	.LFE2-.LFB2
+ 766 089c 0130C2E5 		.byte	0x4
+ 115:lab.c         ****     WO_Direct_Individual_Motor_Control.motor[2] = 0;
+ 767              	e	.LCFI0-.LFB2
+ 768 08a0 80231FE5 		.byte	0xd
+ 769 08a4 0030A0E3 		.uleb128 0xc
+ 770 08a8 0230C2E5 		.byte	0x4
+ 116:lab.c         **** 	WO_Direct_Individual_Motor_Control.motor[3] = 0;
+ 771              	yte	.LCFI1-.LCFI0
+ 772 08ac 8C231FE5 		.byte	0x8e
+ 773 08b0 0030A0E3 		.uleb128 0x2
+ 774 08b4 0330C2E5 		.byte	0x8d
+ 117:lab.c         **** }
+ 775              	eb128 0x3
+ 776 08b8 20D04BE2 		.byte	0x8b
+ 777 08bc F0699DE8 		.uleb128 0x4
+ 778 08c0 1EFF2FE1 		.byte	0x88
+ 779              		.uleb128 0x5
+ 780              		.byte	0x87
+ 781              		.uleb128 0x6
+ 782              		.byte	0x86
+ 836              		.ascii	"unsigned int\000"
+DEFINED SYMBOLS
+                            *ABS*:00000000 lab.c
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:15     .data:00000000 k1
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:16     .data:00000000 $d
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:21     .data:00000004 k2
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:27     .data:00000008 period
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:33     .data:0000000c kF
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:39     .data:00000010 alpha
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:45     .data:00000014 beta
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:51     .data:00000018 l
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:57     .data:0000001c m
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:63     .data:00000020 g
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:70     .bss:00000000 input_amplitude
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:77     .data:00000024 sample_rate
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:84     .bss:00000004 counter
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:90     .bss:00000008 angle_pitch_desired
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:96     .bss:0000000c mu1
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:102    .bss:00000010 mu2
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:108    .bss:00000014 t
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:114    .bss:00000018 angle_pitch
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:120    .bss:0000001c angvel_pitch
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:126    .bss:00000020 u2
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:132    .bss:00000024 u4
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:138    .bss:00000028 f1
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:144    .bss:0000002c f2
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:150    .bss:00000030 sigma1
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:156    .bss:00000034 sigma2
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:172    .text:00000000 lab
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:179    .text:00000000 $a
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:488    .text:0000049c $d
+C:\Users\ecchen3\AppData\Local\Temp/ccS8caaa.s:525    .text:0000052c $a
+                            *COM*:00000004 GPS_timeout
+                            *COM*:00000001 SYSTEM_initialized
+
+UNDEFINED SYMBOLS
+__floatsisf
+__divsf3
+__extendsfdf2
+__divdf3
+__muldf3
+__truncdfsf2
+__subsf3
+__adddf3
+__mulsf3
+__fixsfsi
+sin
+cos
+RO_ALL_Data
+WO_SDK
+WO_Direct_Individual_Motor_Control
+sqrt
